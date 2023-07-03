@@ -15,6 +15,7 @@
 - [Opis korištenih biblioteka i metoda](#opis-korištenih-biblioteka-i-metoda)
 - [Izvedba eksperimenta](#izvedba-eksperimenta)
 - [Rezultati i primjeri predikcija](#rezultati-i-primjeri-predikcija)
+- [Zaključak](#zaključak)
 - [Literatura](#literatura)
 
 ## Uvod
@@ -163,6 +164,18 @@ Tada skup podataka konačno možemo i preuzeti koristeći funkciju koju smo defi
 
 ```
 ds_ train, ds_test, ds_info = load_dataset()
+```
+
+Definirati ćemo i funkciju load_labels, kojom možemo ispisati sve pasmine u skupu podataka:
+
+```python
+def load_labels():
+  breed_names = []
+  with open("/content/drive/MyDrive/dataset/tfds/stanford_dogs/0.2.0/label.labels.txt", 'r') as f:
+    for line in f:
+      line = line.replace('\n', '')[10:]
+      breed_names.append(line)
+  return breed_names
 ```
 
 Ispis svih 120 pasmina:
@@ -356,106 +369,36 @@ def mobileNetV2(image_shape, num_classes, lr=0.001):
 - Metrike za evaluaciju tijekom obuke postavljene su na `'accuracy'`, što mjeri točnost predikcija modela u usporedbi s istinskim oznakama.
 - Na kraju, funkcija vraća kompilirani model.
 
-U nastavku ćemo definirati još nekoliko funkcija:
+  U nastavku ćemo definirati još nekoliko funkcija:
 
-```python
-def load_labels(label_file):
-    with open(label_file, 'r') as f:
-        labels = f.read().splitlines()
-    return labels
+  ```python
 
-def create_model(input_shape, num_classes, learning_rate):
-    base_model = MobileNetV2(include_top=False, input_shape=input_shape, weights='imagenet')
-    model = Sequential([
-        base_model,
-        GlobalAveragePooling2D(),
-        Dense(256, activation='relu'),
-        Dropout(0.5),
-        Dense(num_classes, activation='softmax')
-    ])
-    optimizer = Adam(learning_rate=learning_rate)
-    model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-    return model
+  def create_model():
+      net = mobileNetV2(INPUT_SHAPE, NUM_BREEDS, lr=0.0001)
+      return net
 
-def evaluate(model, test_dataset):
-    loss, accuracy = model.evaluate(test_dataset)
-    print('Loss:', loss)
-    print('Accuracy:', accuracy)
+  def evaluate(net):
+      metrics = net.evaluate(test_set, return_dict=True, verbose=1)
+      for key, value in metrics.items():
+          print(key + ": {}".format(round(value, 2)))
 
-def generate_classification_report(model, dataset, num_classes, target_names):
-    true_labels = []
-    predicted_labels = []
+  def training(net, name, log_dir, checkpoint_path):
+      net.summary()
 
-    for image, label in dataset:
-        true_labels.extend(label.numpy())
-        prediction = model.predict(image)
-        predicted_label = np.argmax(prediction, axis=1)[0]
-        predicted_labels.append(predicted_label)
+      tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=0)
+      cp_callback = ModelCheckpoint(filepath=checkpoint_path, save_weights_only=True, verbose=1)
 
-    true_labels = np.array(true_labels)
-    predicted_labels = np.array(predicted_labels)
+      net.fit(train_set, epochs=10, validation_data=test_set, callbacks=[tensorboard_callback, cp_callback])
 
-    report = classification_report(true_labels, predicted_labels, target_names=target_names)
-    return report
+      net.save(save_path + "/{}".format(name))
+      net.save("/content/drive/MyDrive/dataset/{}.h5".format(name))
+  ```
 
-def training(train_dataset, test_dataset, model_dir, checkpoint_dir, log_dir, input_shape, num_classes, learning_rate, batch_size, epochs):
-    model = create_model(input_shape, num_classes, learning_rate)
+  - `create_model()`: Funkcija koja stvara model temeljen na mobileNetV2 arhitekturi i vraća kompajlirani model.
 
-    checkpoint_callback = ModelCheckpoint(filepath=checkpoint_dir, save_weights_only=True, save_best_only=True)
-    tensorboard_callback = TensorBoard(log_dir=log_dir, histogram_freq=1, profile_batch=0)
+  - `evaluate(model, test_dataset)`: Funkcija koja evaluira model na testnom skupu podataka i ispisuje rezultate metrika.
 
-    train_dataset = prepare(train_dataset, input_shape, num_classes, batch_size)
-    test_dataset = prepare(test_dataset, input_shape, num_classes, batch_size)
-
-    history = model.fit(train_dataset, validation_data=test_dataset, epochs=epochs,
-                        callbacks=[checkpoint_callback, tensorboard_callback])
-
-    model.save(model_dir)
-
-    return history
-
-def predict(model, image, labels, top_k=3):
-    processed_image = preprocess(image, input_shape[0:-1], num_classes, resize=True, normalize=True, one_hot=False)
-    processed_image = np.expand_dims(processed_image, axis=0)
-    predictions = model.predict(processed_image)[0]
-    top_indices = np.argsort(predictions)[-top_k:][::-1]
-    top_predictions = predictions[top_indices]
-    top_labels = [labels[i] for i in top_indices]
-    return top_labels, top_predictions
-
-def load_image(image_url, target_size):
-    image = Image.open(requests.get(image_url, stream=True).raw)
-    image = image.resize(target_size)
-    return image
-
-def make_predictions(image_url='https://httpstatusdogs.com/404-not-found'):
-    image = load_image(image_url, input_shape[0:-1])
-    top_labels, top_predictions = predict(model, image, labels, top_k=3)
-
-    plt.imshow(image)
-    plt.axis('off')
-    plt.show()
-
-    for label, prediction in zip(top_labels, top_predictions):
-        print(f'{label}: {prediction}')
-
-```
-
-- `load_labels(label_file)`: Ova funkcija prima putanju do datoteke s oznakama (`label_file`) kao ulaz. Čita sadržaj datoteke i razdvaja ga u listu oznaka. Zatim vraća listu oznaka.
-
-- `create_model(input_shape, num_classes, learning_rate)`: Ova funkcija stvara model za klasifikaciju slika. Koristi MobileNetV2 model kao temeljni model s određenom ulaznom veličinom (`input_shape`). Na temelju tog modela dodaje globalni sloj sažimanja (`GlobalAveragePooling2D`), gusto povezani sloj s 256 jedinica i aktivacijskom funkcijom ReLU, sloj isključivanja (`Dropout`) s stopom isključivanja od 0.5 i gusti izlazni sloj s `num_classes` jedinica i aktivacijskom funkcijom softmax. Funkcija kompajlira model s Adam optimizatorom koristeći određenu stopu učenja, kategoričku križnu entropiju kao funkciju gubitka (loss) i točnost (accuracy) kao metriku. Zatim vraća kompilirani model.
-
-- `evaluate(model, test_dataset)`: Ova funkcija ocjenjuje performanse naučenog modela na testnom skupu podataka. Računa gubitak (loss) i točnost (accuracy) modela na testnom skupu podataka koristeći metodu evaluate modela. Funkcija ispisuje izračunati gubitak i točnost.
-
-- `generate_classification_report(model, dataset, num_classes, target_names)`: Ova funkcija generira izvještaj o klasifikaciji na temelju predikcija zadanim modelom na skupu podataka. Prima naučeni `model`, `dataset` na kojem će se model evaluirati, `num_classes` (broj klasa) i `target_names` (lista imena za svaku ciljnu klasu) kao parametre.
-
-- `training(train_dataset, test_dataset, model_dir, checkpoint_dir, log_dir, input_shape, num_classes, learning_rate, batch_size, epochs)`: Ova funkcija izvodi treniranje modela. Prima skup podataka za treniranje (`train_dataset`) i skup podataka za testiranje (`test_dataset`), zajedno s različitim konfiguracijskim parametrima za treniranje kao što su `model_dir` (direktorij za spremanje naučenog modela), `checkpoint_dir` (direktorij za spremanje kontrolnih točaka modela), `log_dir` (direktorij za TensorBoard zapise), `input_shape` (ulazni oblik), `num_classes` (broj klasa), `learning_rate` (stopa učenja), `batch_size` (veličina grupe) i `epochs` (broj epoha). Prvo stvara model koristeći funkciju `create_model`. Zatim postavlja povratne pozive (callbacks) za spremanje kontrolnih točaka modela i zapisivanje zapisa u TensorBoard. Nakon toga priprema skupove podataka za treniranje i testiranje koristeći funkciju `prepare`. Na kraju trenira model koristeći metodu `fit`, prosljeđujući skup podataka za treniranje kao trening podatke, skup podataka za testiranje kao validacijske podatke i povratne pozive (callbacks). Nakon treniranja, sprema naučeni model i vraća povijest treninga.
-
-- `predict(model, image, labels, top_k=3)`: Ova funkcija izvodi predikcije koristeći naučeni model. Prima model (prethodno naučeni model), `image` (sliku), listu `labels` (oznake) i opcionalni parametar `top_k` (broj najboljih predikcija koje treba vratiti, pretpostavljeno je 3). Predobradjuje sliku koristeći funkciju `preprocess`, proširuje dimenzije slike i prolazi kroz model koristeći metodu `predict`. Dohvaća najbolje predikcije i njihove odgovarajuće indekse, dohvaća oznake za te indekse i vraća odgovarajuće oznake i predikcije.
-
-- `load_image(image_url, target_size)`: Ova funkcija učitava sliku sa zadane adrese i preoblikuje je na odgovarajuću veličinu.
-
-- `make_predictions(image_url=None)`: Ova funkcija vrši predikcije koristeći naučeni model i prikazuje rezultate. Prihvaća opcionalni parametar `image_url`, koji pretpostavljeno ima vrijednost `https://httpstatusdogs.com/404-not-found` ako nije naveden. Poziva funkciju `load_image` za učitavanje slike s određenog `image_url` i promjenu veličine. Zatim poziva funkciju `predict` za dobivanje najboljih oznaka i predikcija za sliku koristeći naučeni model i zadane `labels`. Prikazuje sliku koristeći `imshow` iz biblioteke Matplotlib, prikazuje najbolje oznake i predikcije te ih ispisuje.
+  - `training(net, name, log_dir, checkpoint_path)`: Funkcija koja obavlja trening modela na skupu podataka za treniranje, sprema model na određenoj putanji i sprema kontrolne točke modela.
 
 Tada moramo definirati još nekoliko varijabli:
 
@@ -479,14 +422,11 @@ U ovom je trenutku sve spremno za kreiranje i treniranje modela:
 ```python
 mobilenet = create_model()
 training(mobilenet, 'mobileNet_dogs', log_dir1, checkpoint_path1)
-evaluate(mobilenet)
 ```
 
-U ovom dijelu koda, najprije se stvara model pozivom funkcije `create_model()` i dodjeljuje se varijabli `mobilenet`. Zatim se navedeni model trenira pozivom funkcije `training()`, koja prima model, naziv modela za identifikaciju, putanju do direktorija za spremanje logova i putanju do kontrolne točke modela. Nakon treniranja, model se evaluira pozivom funkcije `evaluate()` kako bi se dobila mjera performansi na testnim podacima. Ovaj dio koda obuhvaća stvaranje, treniranje i evaluaciju modela te pridružene operacije poput spremanja logova i kontrolnih točaka.
+U ovom dijelu koda, najprije se stvara model pozivom funkcije `create_model()` i dodjeljuje se varijabli `mobilenet`. Zatim se navedeni model trenira pozivom funkcije `training()`, koja prima model, naziv modela za identifikaciju, putanju do direktorija za spremanje logova i putanju do kontrolne točke modela.
 
-## Rezultati i primjeri predikcija
-
-Pozivanjem funkcije `evaluate()` možemo dobiti evaluaciju istreniranog modela:
+Nakon treniranja, model se evaluira pozivom funkcije `evaluate()` kako bi se dobila mjera performansi na testnim podacima:
 
 ```python
 evaluate(mobilenet)
@@ -496,11 +436,91 @@ loss: 0.86
 accuracy: 0.76
 ```
 
-Ovi metrički rezultati pružaju procjenu performansi modela. Vrijednost gubitka (loss) od 0.86 označava prosječnu pogrešku modelovih predikcija, pri čemu su niže vrijednosti poželjnije. Što se tiče točnosti (accuracy), model postiže rezultat od 0.76, što znači da ispravno predviđa klasu slike otprilike 76% vremena.
+Vrijednost gubitka (loss) od 0.86 označava prosječnu pogrešku modelovih predikcija, pri čemu su niže vrijednosti poželjnije. Što se tiče točnosti (accuracy), model postiže rezultat od 0.76, što znači da ispravno predviđa klasu slike otprilike 76% vremena.
+
+Za kraj moramo navesti nekoliko funkcija za prikaz izvještaja i generiranje predikcija nad slikama:
+
+```python
+def generate_classification_report(model, dataset, num_classes, target_names):
+    true_labels = []
+    predicted_labels = []
+
+    for image, label in dataset:
+        true_labels.extend(label.numpy())
+        prediction = model.predict(image)
+        predicted_label = np.argmax(prediction, axis=1)[0]
+        predicted_labels.append(predicted_label)
+
+    true_labels = np.array(true_labels)
+    predicted_labels = np.array(predicted_labels)
+
+    report = classification_report(true_labels, predicted_labels, target_names=target_names)
+    return report
+
+def predict(x, top_k):
+    input_shape = model.layers[0].input_shape[1:]
+    if isinstance(x, np.ndarray):
+        assert x.shape == input_shape
+        x = tf.convert_to_tensor(x)
+    x = tf.expand_dims(x, axis=0)
+
+    pred = model.predict(x)
+    top_k_pred, top_k_indices = tf.math.top_k(pred, k=top_k)
+
+    predictions = dict()
+    for j in range(top_k):
+        name = ds_info.features['label'].int2str(top_k_indices[0][j])
+        name = name.replace('\n', '')[10:]
+        value = top_k_pred.numpy()[0][j]
+        value = round(100*value, 2)
+        predictions[name] = value
+
+    return predictions
+
+def load_image(url, output_shape=(224, 224)):
+    timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+    if url.startswith('/content/'):
+        file_name = url
+    else:
+        file_name = '/content/drive/MyDrive/dataset/downloads/image-{}.jpg'.format(timestamp)
+        image = get_file(file_name, url, extract=True)
+
+    img = load_img(file_name).resize(output_shape)
+    img_array = img_to_array(img) / 255.
+    return img_array, file_name
+
+def make_predictions(url=None):
+    if url is None:
+        url_input = input('Enter a URL for the image: ')
+
+    img_array, file_name = load_image(url_input)
+    result = predict(img_array, 3)
+
+    plt.figure()
+    img = Image.open(file_name)
+    plt.xticks([])
+    plt.yticks([])
+    plt.imshow(img)
+    predictions = ''
+    for key, value in result.items():
+        predictions += '{} - {}%\n'.format(key, value)
+    plt.title(predictions)
+    plt.show()
+```
+
+- `generate_classification_report(model, dataset, num_classes, target_names)`: Generira izvješće o klasifikaciji na temelju modela i skupa podataka.
+
+- `predict(x, top_k)`: Vraća najbolje predikcije i pripadajuće oznake za dani model i sliku.
+
+- `load_image(url, output_shape=(224, 224))`: Učitava sliku s danog URL-a i mijenja joj veličinu prema zadanoj veličini.
+
+- `make_predictions(url=None)`: Izvršava predikcije za danu sliku i prikazuje rezultate.
+
+## Rezultati i primjeri predikcija
 
 Od generiranih logova tijekom treniranja, možemo izvući razne metrike i grafove korištenjem `Tensorboarda`:
 
-```
+```python
 notebook.start("--logdir=/content/drive/MyDrive/dataset/logs/fit/mobilenet")
 ```
 
@@ -510,7 +530,7 @@ notebook.start("--logdir=/content/drive/MyDrive/dataset/logs/fit/mobilenet")
 
 Na sljedeći način možemo generirati i klasifikacijski izvještaj:
 
-```
+```python
 target_names = load_labels()
 model = load_model('/content/drive/MyDrive/dataset/mobileNet_dogs.h5')
 validation_set = prepare(ds_test, INPUT_SHAPE, NUM_BREEDS, batch_size=BATCH_SIZE)
@@ -657,20 +677,39 @@ Kada je riječ o odzivu, odnosno sposobnosti ispravnog prepoznavanja pozitivnih 
 
 Za procjenu ukupne uspješnosti modela možemo pogledati metriku točnosti, koja mjeri postotak točno predviđenih instanci za sve pasmine. U ovom slučaju, model postiže točnost od 82%, što ukazuje da pravilno klasificira pse u većini slučajeva.
 
-![prva](images/labrador.jpg)
+Primjeri predikcija:
 
-![druga](images/vizla.jpg)
+- labrador
+  ![prva](images/labrador.jpg)
 
-![treca](images/amor.jpg)
+- Vizla
+  ![druga](images/vizla.jpg)
 
-![cetvrta](images/miks_dog.jpg)
+- Njemački kratkodlaki ptičar
+  ![treca](images/amor.jpg)
 
-![peta](images/baski_dog.jpg)
+- Snaucer
+  ![cetvrta](images/miks_dog.jpg)
 
-![sesta](images/maltezer.jpg)
+- Mješanac boksera i ridgebacka
+  ![peta](images/baski_dog.jpg)
 
-![sedma](images/weimar.jpg)
+- Maltezer
+  ![sesta](images/maltezer.jpg)
+
+- Weimar
+  ![sedma](images/weimar.jpg)
+
+## Zaključak
+
+Strojno i duboko učenje ima široku primjenu u svim aspektima zbog brojnih metoda i modela koji omogućuju istraživanje i rad na raznim problemima. Model koji prepoznaje pasmine pasa omogućit će budućim korisnicima dodavanje slike psa za kojeg žele dobiti pasminu. Neke pasmine dosta sliče te zbog toga postoje šumovi u stvorenim predikcijama (npr. razne vrste labradora). Kao potencijalno rješenje ovog modela može se model dodatno trenirati te ga na taj način poboljšati. Osim toga može se povećati broj epoha i smanjiti learning rate i batch size. Iako postoje neke greške u modelu smatramo kako pasmina psa nije od presudne važnosti te da je i ovakav model sasvim zadovoljavajući. Uz navedena poboljšanja i preinake, ovaj bi se model vrlo lako mogao pretvoriti u mobilnoj aplikaciju upravo zbog pogodne MobileNet arhitekture koja je korištena.
 
 ## Literatura
 
 - [1] <https://www.tensorflow.org/datasets/catalog/stanford_dogs>
+- [2] <https://www.tensorflow.org/datasets/api_docs/python/tfds/visualization/show_examples>
+- [3] <https://www.tensorflow.org/tensorboard>
+- [4] <https://datagen.tech/guides/computer-vision/resnet-50/>
+- [5] <https://medium.com/nanonets/how-to-easily-build-a-dog-breed-image-classification-model-2fd214419cde>
+- [6] <https://medium.com/@ankitsingh540/dog-breed-classification-using-a-pre-trained-cnn-model-32d0d8b9cc26>
+- [7] <https://openai.com/blog/chatgpt>
