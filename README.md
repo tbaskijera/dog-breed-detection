@@ -680,25 +680,32 @@ Za procjenu ukupne uspješnosti modela možemo pogledati metriku točnosti, koja
 Primjeri predikcija:
 
 - labrador
-  ![prva](images/labrador.jpg)
+  
+![prva](images/labrador.jpg)
 
 - Vizla
-  ![druga](images/vizla.jpg)
+
+![druga](images/vizla.jpg)
 
 - Njemački kratkodlaki ptičar
-  ![treca](images/amor.jpg)
+
+![treca](images/amor.jpg)
 
 - Snaucer
-  ![cetvrta](images/miks_dog.jpg)
+
+![cetvrta](images/miks_dog.jpg)
 
 - Mješanac boksera i ridgebacka
-  ![peta](images/baski_dog.jpg)
+
+![peta](images/baski_dog.jpg)
 
 - Maltezer
-  ![sesta](images/maltezer.jpg)
+
+![sesta](images/maltezer.jpg)
 
 - Weimar
-  ![sedma](images/weimar.jpg)
+
+![sedma](images/weimar.jpg)
 
 ## Zaključak
 
