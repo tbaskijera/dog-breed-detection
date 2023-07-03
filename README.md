@@ -10,17 +10,12 @@
 
 ## Tablica sadržaja
 
-- [Prepoznavanje pasmine pasa](#prepoznavanje-pasmine-pasa)
-  - [Tablica sadržaja](#tablica-sadržaja)
-  - [Uvod](#uvod)
-    - [Zadatak](#zadatak)
-    - [Motivacija i pregled područja](#motivacija-i-pregled-područja)
-  - [Korišteni podaci i razvojno okruženje](#korišteni-podaci-i-razvojno-okruženje)
-  - [Opis korištenih biblioteka i metoda](#opis-korištenih-biblioteka-i-metoda)
-  - [Izvedba eksperimenta](#izvedba-eksperimenta)
-  - [Rezultati i primjeri predikcija](#rezultati-i-primjeri-predikcija)
-  - [Zaključak](#zaključak)
-  - [Literatura](#literatura)
+- [Uvod](#uvod)
+- [Korišteni podaci i razvojno okruženje](#korišteni-podaci-i-razvojno-okruženje)
+- [Opis korištenih biblioteka i metoda](#opis-korištenih-biblioteka-i-metoda)
+- [Izvedba eksperimenta](#izvedba-eksperimenta)
+- [Rezultati i primjeri predikcija](#rezultati-i-primjeri-predikcija)
+- [Literatura](#literatura)
 
 ## Uvod
 
